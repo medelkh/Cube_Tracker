@@ -4,8 +4,7 @@
 #include <torch/torch.h>
 #include <opencv2/opencv.hpp>
 #include "Video_Manager.h"
-#include "Bounding_box_model.h"
-#include "Upper_center_model.h"
+#include "Video_Processor.h"
 #include "utils.h"
 
 enum Phase{
@@ -19,8 +18,7 @@ class App
 {
 private:
 	VideoManager* mSource;
-    //BoundingBoxModel mBb_model;
-    //UpperCenterModel mUc_model;
+    VideoProcessor* mProcessor;
     std::string mWindowName{"Cube Tracker"};
     Phase mPhase{START};
     double mFPS{60};

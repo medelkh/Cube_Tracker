@@ -1,7 +1,19 @@
 #include "Video_Processor.h"
 
-VideoProcessor::VideoProcessor(VideoManager *source) : mSource(source), mSobelMask((cv::Mat_<float>(3,3) << -1, 0, 1, -2, 0, 2, -1, 0, 1)){
+VideoProcessor::VideoProcessor(VideoManager *source) : mSource(source), mCubeFrameSize(cv::Size(128,128)),
+                                                       mSobelMask((cv::Mat_<float>(3,3) << -1, 0, 1, -2, 0, 2, -1, 0, 1)),
+                                                       mDevice(torch::cuda::is_available() ? torch::kCUDA : torch::kCPU){
+    if(torch::cuda::is_available()){
+        std::cout << "Working with CUDA" << std::endl;
+    }
+    else{
+        std::cout << "CUDA unavailable. CPU will be used instead." << std::endl;
+    }
 
+    this->load_models();
+
+    this->mBbModel.to(this->mDevice);
+    this->mUcModel.to(this->mDevice);
 }
 
 void VideoProcessor::retrieve_frame() {
@@ -11,6 +23,9 @@ void VideoProcessor::retrieve_frame() {
 void VideoProcessor::process_frame() {
     this->retrieve_frame();
     this->grayscale_frame();
+    this->edge_frame();
+    this->calc_cube_rect();
+    this->set_cube_frames();
 }
 
 void VideoProcessor::grayscale_frame() {
@@ -18,7 +33,7 @@ void VideoProcessor::grayscale_frame() {
 }
 
 void VideoProcessor::edge_frame(){
-    this->mGrayFrame.convertTo(this->mEdgeFrame, CV_32F, 1.0 / 255.0);
+    this->mGrayFrame.convertTo(this->mEdgeFrame, CV_32F, 1./255.);
 
     //apply the sobel mask horizontally and vertically
     cv::Mat dx, dy;
@@ -26,12 +41,51 @@ void VideoProcessor::edge_frame(){
     cv::filter2D(this->mEdgeFrame, dy, -1, this->mSobelMask.t());
 
     // Calculate magnitude and orientation
-    cv::cartToPolar(dx, dy, this->mEdgeFrame, cv::noArray(), true);
+    cv::magnitude(dx, dy, this->mEdgeFrame);
 
-    // Normalize the magnitude to [0, 1]
     cv::normalize(this->mEdgeFrame, this->mEdgeFrame, 0, 1, cv::NORM_MINMAX);
 }
 
-VideoProcessor::~VideoProcessor() {
+void VideoProcessor::calc_cube_rect() {
+    //converting the frame from cv::Mat to a torch::jit::IValue
+    torch::jit::IValue edge_frame_tensor = torch::jit::IValue(torch::from_blob(this->mEdgeFrame.data, {1, 256, 256}, torch::kFloat32).to(this->mDevice));
+    //applying the Bounding Box model to obtain the bounding box tensor
+    at::Tensor bounding_box_tensor = this->mBbModel.forward({edge_frame_tensor}).toTensor();
+    //converting the bounding box tensor to an array while
+    //computing the absolute bounding box pixel coordinates (integers in [0, 256[) from the relative coordinates (floats in [0, 1])
+    int bounding_box[4];
+    for(int i=0; i < 4; i++) bounding_box[i] = int(255. * bounding_box_tensor[i].item<float>());
+    //upscaling the bounding box by a little to account for th model's imprecision
+    bounding_box[0] = std::max(bounding_box[0]-8, 0);
+    bounding_box[1] = std::max(bounding_box[1]-8, 0);
+    bounding_box[2] = std::min(bounding_box[2]+8, 255);
+    bounding_box[3] = std::min(bounding_box[3]+8, 255);
+    //storing the final cube rect in mCubeRect
+    this->mCubeRect = cv::Rect(bounding_box[0], bounding_box[1], bounding_box[2]-bounding_box[0], bounding_box[3]-bounding_box[1]);
+}
 
+void VideoProcessor::set_cube_frames() {
+    //storing the unfiltered cube frame in mCubeFrame
+    this->mCubeFrame = (*this->mFrame)(this->mCubeRect);
+    cv::resize(this->mCubeFrame, this->mCubeFrame, this->mCubeFrameSize, 0, 0, cv::INTER_CUBIC);
+    //storing the cube frame with the edge filter applied on it in mCubeEdgeFrame
+    this->mCubeEdgeFrame = this->mEdgeFrame(this->mCubeRect);
+    cv::resize(this->mCubeEdgeFrame, this->mCubeEdgeFrame, this->mCubeFrameSize, 0, 0, cv::INTER_CUBIC);
+}
+
+void VideoProcessor::draw_cube_bb() {
+    cv::rectangle(*this->mFrame, this->mCubeRect, {0,0,255}, 2);
+}
+
+cv::Mat* VideoProcessor::get_frame() {
+    return this->mFrame;
+}
+
+void VideoProcessor::load_models() {
+    this->mBbModel = torch::jit::load("./models/bb_model.pt");
+    this->mUcModel = torch::jit::load("./models/uc_model.pt");
+}
+
+VideoProcessor::~VideoProcessor() {
+    delete this->mFrame;
 }

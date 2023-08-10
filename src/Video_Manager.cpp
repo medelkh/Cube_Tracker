@@ -57,5 +57,5 @@ void VideoManager::draw_crop_border() {
 
 VideoManager::~VideoManager() {
     if(this->mCropRect) delete this->mCropRect;
-    //delete this->mSource;
+    delete this->mSource;
 }

@@ -12,7 +12,7 @@ include_directories( ${OpenCV_INCLUDE_DIRS} )
 find_package(Torch REQUIRED)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 
-add_executable(cube_tracker src/main.cpp src/app.cpp src/Bounding_box_model.cpp src/Upper_center_model.cpp src/Video_Manager.cpp src/Video_Processor.cpp)
+add_executable(cube_tracker src/main.cpp src/App.cpp src/Video_Manager.cpp src/Video_Processor.cpp)
 target_link_libraries( cube_tracker ${OpenCV_LIBS} )
 target_link_libraries(cube_tracker "${TORCH_LIBRARIES}")
 set_property(TARGET cube_tracker PROPERTY CXX_STANDARD 17)

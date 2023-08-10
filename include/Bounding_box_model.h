@@ -7,30 +7,29 @@
 class BoundingBoxModelImpl : public torch::nn::Module{
 private:
 	std::string parameters_path;
-    //first convolutional layer
-    torch::nn::Conv2d conv1{nullptr};
-    torch::nn::ReLU activ1{nullptr};
-    torch::nn::MaxPool2d maxpool1{nullptr};
-    //second convolutional layer
-    torch::nn::Conv2d conv2{nullptr};
-    torch::nn::ReLU activ2{nullptr};
-    torch::nn::MaxPool2d maxpool2{nullptr};
-    //third convolutional layer
-    torch::nn::Conv2d conv3{nullptr};
-    torch::nn::ReLU activ3{nullptr};
-    torch::nn::MaxPool2d maxpool3{nullptr};
+    //First convolutional layer
+        torch::nn::Conv2d conv1{nullptr};
+        //ReLU activation
+        torch::nn::MaxPool2d maxpool1{nullptr};
+    //Second convolutional layer
+        torch::nn::Conv2d conv2{nullptr};
+        //ReLU activation
+        torch::nn::MaxPool2d maxpool2{nullptr};
+    //Third convolutional layer
+        torch::nn::Conv2d conv3{nullptr};
+        //ReLU activation
+        torch::nn::MaxPool2d maxpool3{nullptr};
     //FC layer
-    torch::nn::Linear fc{nullptr};
-    torch::nn::Sigmoid activFC{nullptr};
-
-    //model's parameters
+        torch::nn::Linear fc{nullptr};
+        //Sigmoid activation
 
 public:
 	BoundingBoxModelImpl(std::string params_path);
+    void init();
 	torch::Tensor forward(torch::Tensor x);
 
-	//Initialize the model
-	void init();
+	//getting the path to the model's parameters
+	std::string get_parameters_path();
 };
 
 TORCH_MODULE(BoundingBoxModel);

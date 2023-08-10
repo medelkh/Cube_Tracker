@@ -1,7 +1,8 @@
-#include "app.h"
+#include "App.h"
 
 App::App() {
     this->mSource = new VideoManager("webcam");
+    this->mProcessor = new VideoProcessor(this->mSource);
 }
 
 void App::init() {
@@ -29,7 +30,12 @@ bool App::run_tracking() {
     //displaying the cropped frame
     while(true){
         this->mSource->next_frame();
-        cv::imshow(this->mWindowName, *(this->mSource->get_processed_frame()));
+
+        this->mProcessor->process_frame();
+        this->mProcessor->draw_cube_bb();
+
+        cv::imshow(this->mWindowName, *(this->mProcessor->get_frame()));
+
         int key = cv::waitKey(1000./(this->mFPS));
         if(key == (int)'q') return false;
     }
@@ -69,5 +75,8 @@ void App::EventHandle(int event, int x, int y, int flags, void *app_object) {
 void App::quit(){
     cv::destroyWindow(this->mWindowName);
 }
+
 App::~App(){
+    delete this->mSource;
+    delete this->mProcessor;
 }
