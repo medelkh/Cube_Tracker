@@ -1,7 +1,7 @@
 #include "App.h"
 
-App::App() {
-    this->mSource = new VideoManager("webcam");
+App::App(std::string type, std::string file_path) {
+    this->mSource = new VideoManager(type, file_path);
     this->mProcessor = new VideoProcessor(this->mSource);
 }
 
@@ -11,6 +11,7 @@ void App::init() {
 }
 
 bool App::run_selection() {
+    this->mSource->next_frame();
     //selecting the cropping area by hand
     while(true){
         this->mSource->next_frame(); //get the next frame from the video source
@@ -33,6 +34,7 @@ bool App::run_tracking() {
 
         this->mProcessor->process_frame();
         this->mProcessor->draw_cube_bb();
+        this->mProcessor->draw_upper_center();
 
         cv::imshow(this->mWindowName, *(this->mProcessor->get_frame()));
 

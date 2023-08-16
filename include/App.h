@@ -25,7 +25,7 @@ private:
 
 public:
 	//App constructor
-    App();
+    App(std::string type, std::string file_path = "");
 
 	//Initialize all the needed models and doing the rest of the necessary setup
 	void init();

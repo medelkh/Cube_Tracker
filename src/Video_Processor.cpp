@@ -1,6 +1,6 @@
 #include "Video_Processor.h"
 
-VideoProcessor::VideoProcessor(VideoManager *source) : mSource(source), mCubeFrameSize(cv::Size(128,128)),
+VideoProcessor::VideoProcessor(VideoManager *source) : mSource(source), mCubeFrameSize(cv::Size(128,128)), mUpperCenter({Quad(), 0.}),
                                                        mSobelMask((cv::Mat_<float>(3,3) << -1, 0, 1, -2, 0, 2, -1, 0, 1)),
                                                        mDevice(torch::cuda::is_available() ? torch::kCUDA : torch::kCPU){
     if(torch::cuda::is_available()){
@@ -26,6 +26,7 @@ void VideoProcessor::process_frame() {
     this->edge_frame();
     this->calc_cube_rect();
     this->set_cube_frames();
+    this->calc_upper_center();
 }
 
 void VideoProcessor::grayscale_frame() {
@@ -55,7 +56,7 @@ void VideoProcessor::calc_cube_rect() {
     //computing the absolute bounding box pixel coordinates (integers in [0, 256[) from the relative coordinates (floats in [0, 1])
     int bounding_box[4];
     for(int i=0; i < 4; i++) bounding_box[i] = int(255. * bounding_box_tensor[i].item<float>());
-    //upscaling the bounding box by a little to account for th model's imprecision
+    //upscaling the bounding box by a little to account for the model's imprecision
     bounding_box[0] = std::max(bounding_box[0]-8, 0);
     bounding_box[1] = std::max(bounding_box[1]-8, 0);
     bounding_box[2] = std::min(bounding_box[2]+8, 255);
@@ -73,8 +74,28 @@ void VideoProcessor::set_cube_frames() {
     cv::resize(this->mCubeEdgeFrame, this->mCubeEdgeFrame, this->mCubeFrameSize, 0, 0, cv::INTER_CUBIC);
 }
 
+void VideoProcessor::calc_upper_center() {
+    //converting the edge filtered cube frame from cv::Mat to a torch::jit::IValue
+    torch::jit::IValue cube_edge_frame_tensor = torch::jit::IValue(torch::from_blob(this->mCubeEdgeFrame.data, {1, 128, 128}, torch::kFloat32).to(this->mDevice));
+    //applying the Bounding Box model to obtain the bounding box tensor
+    at::Tensor upper_center_tensor = this->mUcModel.forward({cube_edge_frame_tensor}).toTensor();
+    //storing the upper center in mUpperCenter
+    this->mUpperCenter = {Quad(cv::Point(mCubeRect.x + int(mCubeRect.width * upper_center_tensor[0].item<float>()),mCubeRect.y + int(mCubeRect.height * upper_center_tensor[1].item<float>())),
+                               cv::Point(mCubeRect.x + int(mCubeRect.width * upper_center_tensor[2].item<float>()),mCubeRect.y + int(mCubeRect.height * upper_center_tensor[3].item<float>())),
+                               cv::Point(mCubeRect.x + int(mCubeRect.width * upper_center_tensor[4].item<float>()),mCubeRect.y + int(mCubeRect.height * upper_center_tensor[5].item<float>())),
+                               cv::Point(mCubeRect.x + int(mCubeRect.width* upper_center_tensor[6].item<float>()),mCubeRect.y + int(mCubeRect.height * upper_center_tensor[7].item<float>()))),
+                               upper_center_tensor[8].item<float>()};
+}
+
 void VideoProcessor::draw_cube_bb() {
     cv::rectangle(*this->mFrame, this->mCubeRect, {0,0,255}, 2);
+}
+
+void VideoProcessor::draw_upper_center() {
+    std::cout << "Upper Center condidence level : " << this->mUpperCenter.second << std::endl;
+    for(int i=0; i<4; i++){
+        cv::line(*mFrame, mUpperCenter.first[i], mUpperCenter.first[i+1], {0, 255, 0}, 2);
+    }
 }
 
 cv::Mat* VideoProcessor::get_frame() {
@@ -87,5 +108,4 @@ void VideoProcessor::load_models() {
 }
 
 VideoProcessor::~VideoProcessor() {
-    delete this->mFrame;
 }

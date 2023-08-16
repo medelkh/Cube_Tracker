@@ -5,6 +5,7 @@
 #include <torch/script.h>
 #include <opencv2/opencv.hpp>
 #include "Video_Manager.h"
+#include "utils.h"
 
 class VideoProcessor {
 private:
@@ -16,6 +17,7 @@ private:
     cv::Size mCubeFrameSize;
 
     cv::Rect mCubeRect; //the detected cube Rect
+    std::pair<Quad, float> mUpperCenter; //the predicted upper center as well as the confidence level
 
     cv::Mat mSobelMask; //the 3x3 sobel mask
 
@@ -23,7 +25,7 @@ private:
     cv::Mat mGrayFrame; //grayscale frame
     cv::Mat mEdgeFrame; //sobel transform for edge detection
     cv::Mat mCubeEdgeFrame; //the detected cube frame with the edge filter applied on it
-    cv::Mat mCubeFrame;
+    cv::Mat mCubeFrame; //the detected cube frame cropped from the unfiltered original frame
 
     torch::Device mDevice; //CUDA (GPU) or CPU
 
@@ -49,8 +51,14 @@ public:
     //stores the cropped cube's bounding box in both mCubeEdgeFrame and mCubeFrame
     void set_cube_frames();
 
+    //gets the upper center's corners' position with a confidence level from the Upper Center model and stores it in mUpperCenter
+    void calc_upper_center();
+
     //draws the bounding box of the cube on the originally retrieved frame
     void draw_cube_bb();
+
+    //draws the predicted upper center's position
+    void draw_upper_center();
 
     //returns a pointer to the processed frame
     cv::Mat* get_frame();

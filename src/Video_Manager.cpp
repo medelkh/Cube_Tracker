@@ -7,7 +7,6 @@ VideoManager::VideoManager(std::string source_type, std::string video_source): m
     else{
         this->mSource = new cv::VideoCapture(video_source);
     }
-    assert(this->mSource->isOpened());
 }
 
 void VideoManager::next_frame() {
